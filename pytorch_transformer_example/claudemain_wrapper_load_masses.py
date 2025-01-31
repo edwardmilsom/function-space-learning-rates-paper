@@ -582,6 +582,16 @@ except KeyboardInterrupt:
     print('-' * 89)
     print('Exiting from training early')
 
+
+# # Load the best saved model.
+# with open(args.save, 'rb') as f:
+#     model = torch.load(f)
+#     # after load the rnn params are not a continuous chunk of memory
+#     # this makes them a continuous chunk, and will speed up forward pass
+#     # Currently, only rnn model supports flatten_parameters function.
+#     if args.model in ['RNN_TANH', 'RNN_RELU', 'LSTM', 'GRU']:
+#         model.rnn.flatten_parameters()
+
 # Run on test data.
 test_loss = evaluate(test_data)
 print('=' * 89)
