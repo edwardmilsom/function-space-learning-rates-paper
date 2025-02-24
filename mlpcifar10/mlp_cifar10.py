@@ -48,6 +48,45 @@ torch.cuda.manual_seed(args.seed)
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
+# Weights and Biases init
+import wandb
+# if args.only_measure_masses:
+#     wandb.init(
+#             project="measuremasses_mlp_cifar10",
+#             config={
+#                 "learning_rate": args.lr,
+#                 "depth_multiplier": args.depth_mult,
+#                 "width_multiplier": args.width_mult,
+#                 "seed": args.seed,
+#                 "normalised": args.normalised,
+#                 "optimiser": args.optimiser,
+#                 "architecture": "MLP",
+#                 "dataset": "CIFAR10",
+#                 "epochs": 1,
+#             },
+#             # Organize runs with groups and job types
+#             group=f"{args.ptnormsprefix}_{args.ptprefix}_normalised_{args.normalised}_optimiser_{args.optimiser}_lr_{args.lr}",  # group by depthmult
+#             name=f"{args.ptnormsprefix}_{args.ptprefix}_normalised_{args.normalised}_optimiser_{args.optimiser}_lr_{args.lr}_depthmult_{args.depth_mult}_widthmult_{args.width_mult}_seed_{args.seed}"  # custom run name
+#         )
+# else:
+#     wandb.init(
+#                 project="mlp_cifar10",
+#                 config={
+#                     "learning_rate": args.lr,
+#                     "depth_multiplier": args.depth_mult,
+#                     "width_multiplier": args.width_mult,
+#                     "seed": args.seed,
+#                     "normalised": args.normalised,
+#                     "optimiser": args.optimiser,
+#                     "architecture": "MLP",
+#                     "dataset": "CIFAR10",
+#                     "epochs": 1,
+#                 },
+#                 # Organize runs with groups and job types
+#                 group=f"{args.ptnormsprefix}_{args.ptprefix}_normalised_{args.normalised}_optimiser_{args.optimiser}_lr_{args.lr}",  # group by depthmult
+#                 name=f"{args.ptnormsprefix}_{args.ptprefix}_normalised_{args.normalised}_optimiser_{args.optimiser}_lr_{args.lr}_depthmult_{args.depth_mult}_widthmult_{args.width_mult}_seed_{args.seed}"  # custom run name
+#             )
+
 #%% Load the CIFAR-10 dataset
 
 # Load the CIFAR-10 dataset
@@ -281,9 +320,9 @@ test_accuracies = []
 
 epochs = 50
 
-#normalised_optimiser is in the parent directory, so we need to import it from ..
+#flerm is in the parent directory, so we need to import it from ..
 os.sys.path.append("..")
-from normalised_optimiser import WrapperUpdateNormaliser
+from flerm import FLeRM
 
 if args.model == 'mlp':
     model = SimpleMLP(args.width_mult, args.depth_mult).to(args.device)
@@ -311,6 +350,7 @@ elif args.normalised:
     # Fetch observed masses from the training runs, and average them over the seeds
     seeds = [0,1,2,3,4,5,6,7]
     # seeds = [args.seed]
+    # seeds = [0]
     obs_masses_avg_seeds_dict_inited = False
     obs_masses_avg_seeds_dict = {}
     if not args.equal_mass_but_still_splitting_depth_properly_ablation:
@@ -318,7 +358,7 @@ elif args.normalised:
             single_seed_observed_masses_training_dict = torch.load(f"{args.ptnormsprefix}basemodel{args.model}cifar10empiricalmasses_lr_{args.lr}_seed_{seed}.ptnorms")
             for key in single_seed_observed_masses_training_dict:
                 for i in range(len(single_seed_observed_masses_training_dict[key])):
-                    single_seed_observed_masses_training_dict[key][i] = single_seed_observed_masses_training_dict[key][i].item() # Convert the tensors to floats
+                    single_seed_observed_masses_training_dict[key][i] = single_seed_observed_masses_training_dict[key][i]
             if not obs_masses_avg_seeds_dict_inited:
                 obs_masses_avg_seeds_dict = single_seed_observed_masses_training_dict
                 obs_masses_avg_seeds_dict_inited = True
@@ -406,10 +446,11 @@ else:
 #             obs_masses_avg_seeds_dict[key][i] = obs_masses_avg_seeds_dict[key][i-1] * args.normaliser_beta + obs_masses_avg_seeds_dict[key][i] * (1 - args.normaliser_beta) 
 
 
-
+def model_output_closure(X):
+    return model(X)
 
 # Initialise the normaliser
-normaliser = WrapperUpdateNormaliser(model, optimiser, outerlr=args.lr, beta=args.normaliser_beta, approx_type=args.normaliser_approx_type, masses = masses)
+normaliser = FLeRM(model_output_closure, optimiser, args.lr, model.named_parameters(), beta=args.normaliser_beta, approx_type=args.normaliser_approx_type, baseFSLRs = masses)
 
 import time
 
@@ -454,7 +495,7 @@ for i in range(epochs):
         
         # Do 40 warmup iterations at the start of training (run the normaliser for a few batches without updating the learning rates)
         # Note: normaliser.update_lrs usually in_place overwrites the tensor created in normaliser.save_weights() to become the updates to the weights, so we need a flag reuse_previous_weight_updates=True to prevent this when doing warmup, as the optimiser step isn't changing.
-        if iteration == 0:
+        if iteration == 0 and args.normalised:
             # Run first time to compute weight_updates
             try:
                 flerm_X, _ = next(flerm_in_memory_train_loader_iter)
@@ -558,6 +599,13 @@ for i in range(epochs):
             test_losses.append(test_loss)
             test_accuracies.append(test_accuracy)
 
+            # Weights and Biases logging
+            wandbdict = {f"train_loss (last {logging_interval} batches)": avg_train_loss, f"train_accuracy (last {logging_interval})": avg_train_accuracy, "test_loss": test_loss, "test_accuracy": test_accuracy}
+            if args.only_measure_masses:
+                for namedparam, nmlsr in namedparam_normaliser_dict.items():
+                    wandbdict[f"normaliser/{namedparam[0]}"] = nmlsr
+            # wandb.log(wandbdict)
+
             print(f"Iteration: {iteration}, Train Loss: {avg_train_loss}, Train Accuracy: {avg_train_accuracy}, Test Loss: {test_loss}, Test Accuracy: {test_accuracy}, Time: {time.time() - start_time}", flush=True)
 
         iteration += 1
@@ -581,6 +629,8 @@ for i in range(epochs):
 
     print(f'Epoch: {i} complete. Time taken: {end_time - start_time}', flush=True)
 
+
+# wandb.finish()
 
 # Save the results
 results = {'train_losses': train_losses, 'test_losses': test_losses, 'train_accuracies': train_accuracies, 'test_accuracies': test_accuracies}

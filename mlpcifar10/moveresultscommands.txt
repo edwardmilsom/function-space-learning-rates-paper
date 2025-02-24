@@ -1,0 +1,13 @@
+mkdir ../experiment_results/feb19adamwepsilon1e-4onlyflermfirststep_resmlp_normalised_width/
+mkdir ../experiment_results/feb19adamwepsilon1e-4onlyflermfirststep_resmlp_normalised_depth/
+mkdir ../experiment_results/feb19adamwepsilon1e-4flermevery100_resmlp_normalised_width/
+mkdir ../experiment_results/feb19adamwepsilon1e-4flermevery100_resmlp_normalised_depth/
+mkdir ../experiment_results/feb19adamw_resmlp_unnormalised_width/
+mkdir ../experiment_results/feb19adamw_resmlp_unnormalised_depth/
+
+mv onlyflermfirststepnormalisedwidth* ../experiment_results/feb19adamwepsilon1e-4onlyflermfirststep_resmlp_normalised_width/
+mv onlyflermfirststepnormaliseddepth* ../experiment_results/feb19adamwepsilon1e-4onlyflermfirststep_resmlp_normalised_depth/
+mv normalisedwidth* ../experiment_results/feb19adamwepsilon1e-4flermevery100_resmlp_normalised_width/
+mv normaliseddepth* ../experiment_results/feb19adamwepsilon1e-4flermevery100_resmlp_normalised_depth/
+mv unnormalisedwidth* ../experiment_results/feb19adamw_resmlp_unnormalised_width/
+mv unnormaliseddepth* ../experiment_results/feb19adamw_resmlp_unnormalised_depth/

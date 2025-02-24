@@ -2,6 +2,7 @@ import torch
 from datasets import load_dataset
 import numpy as np
 from warnings import warn
+from torch.utils.data import Dataset
 
 class PretrainingDataset(Dataset):
     def __init__(self, tokenizer, dataset_name="c4", subset="en", streaming=True, SEQ_LEN=None):

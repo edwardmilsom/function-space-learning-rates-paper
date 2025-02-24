@@ -3,9 +3,10 @@ from matplotlib import pyplot as plt
 import numpy as np
 import warnings
 import math
+from math import nan
 
 def create_training_plots_on_axis(ax, filename, early_stopping="none", max_iters=None, 
-                                  transferparam="widthmult", plotmetric="train_losses", perplexity_or_accuracy="perplexity", 
+                                  transferparam="widthmult", plotmetric="train_losses", perplexity_or_accuracy="perplexity", onlytrainloss=False, tupleinsteadofvalue=False,
                                   do_not_ignore_nan=False, average_over_last_n=1, y_axis_logscale=False):
     """
     Creates a plot on the given Axes or a new figure if Axes is not provided.
@@ -37,6 +38,10 @@ def create_training_plots_on_axis(ax, filename, early_stopping="none", max_iters
             "train_accuracy": "train_accuracies", 
             "test_accuracy": "test_accuracies"
         }
+    
+    if onlytrainloss:
+        metrics = ["train_losses"]
+        early_stop_arg_metric_correspondence = {"train_loss": "train_losses"}
 
     # Calculate iterations for each metric
     num_iters = {}
@@ -79,7 +84,17 @@ def create_training_plots_on_axis(ax, filename, early_stopping="none", max_iters
                         min_earlystopmetric_loss = min(earlystopmetric_losses)
                         min_earlystopmetric_loss_epoch = earlystopmetric_losses.index(min_earlystopmetric_loss)
                         
-                        val = merged_dict[metric][transferval][lr][seed][min_earlystopmetric_loss_epoch]
+                        if tupleinsteadofvalue:
+                            # If not a tuple
+                            if type(merged_dict[metric][transferval][lr][seed][min_earlystopmetric_loss_epoch]) is not tuple:
+                                if math.isnan(merged_dict[metric][transferval][lr][seed][min_earlystopmetric_loss_epoch]):
+                                    val = nan
+                                else:
+                                    raise ValueError(f"Tuple expected, got this value: {merged_dict[metric][transferval][lr][seed][min_earlystopmetric_loss_epoch]}")
+                            else:
+                                val = merged_dict[metric][transferval][lr][seed][min_earlystopmetric_loss_epoch][1]
+                        else:
+                            val = merged_dict[metric][transferval][lr][seed][min_earlystopmetric_loss_epoch]
                         for d in range(1, average_over_last_n):
                             val += merged_dict[metric][transferval][lr][seed][min_earlystopmetric_loss_epoch - d]
                         plotting_dict[metric][transferval][lr][seed] = val / average_over_last_n
@@ -93,15 +108,33 @@ def create_training_plots_on_axis(ax, filename, early_stopping="none", max_iters
                 for lr in merged_dict[metric][transferval]:
                     plotting_dict[metric][transferval][lr] = {}
                     for seed in merged_dict[metric][transferval][lr]:
-                        val = merged_dict[metric][transferval][lr][seed][max_iters[metric]-1]
+                        if tupleinsteadofvalue:
+                            if type(merged_dict[metric][transferval][lr][seed][max_iters[metric]-1]) is not tuple:
+                                if math.isnan(merged_dict[metric][transferval][lr][seed][max_iters[metric]-1]):
+                                    val = nan
+                                else:
+                                    raise ValueError(f"Tuple expected, got this value: {merged_dict[metric][transferval][lr][seed][max_iters[metric]-1]}")
+                            else:
+                                val = merged_dict[metric][transferval][lr][seed][max_iters[metric]-1][1]
+                                
+                        else:
+                            val = merged_dict[metric][transferval][lr][seed][max_iters[metric]-1]
                         for d in range(1, average_over_last_n):
-                            val += merged_dict[metric][transferval][lr][seed][max_iters[metric]-1-d]
+                            if type(merged_dict[metric][transferval][lr][seed][max_iters[metric]-1-d]) is not tuple:
+                                if math.isnan(merged_dict[metric][transferval][lr][seed][max_iters[metric]-1-d]):
+                                    val = nan
+                                else:
+                                    raise ValueError(f"Tuple expected, got this value: {merged_dict[metric][transferval][lr][seed][max_iters[metric]-1-d]}")
+                            else:
+                                nextval = merged_dict[metric][transferval][lr][seed][max_iters[metric]-1-d][1]
+                            val += nextval#merged_dict[metric][transferval][lr][seed][max_iters[metric]-1-d]
                         plotting_dict[metric][transferval][lr][seed] = val / average_over_last_n
 
     transferparamdisplaynamedict = {
         "widthmult": "Width $\\times$",
         "depthmult": "Depth $\\times$",
-        "initscale": "Init. $\\times$"
+        "initscale": "Init. $\\times$",
+        "lorarank": "Rank $=$"
     }
     
     if perplexity_or_accuracy == "perplexity":
@@ -153,13 +186,19 @@ def create_training_plots_on_axis(ax, filename, early_stopping="none", max_iters
             cmap = plt.get_cmap('plasma')
         elif transferparam == "initscale":
             cmap = plt.get_cmap('cividis')
+        elif transferparam == "lorarank":
+            cmap = plt.get_cmap('inferno')
         # Get the colour
-        color = cmap((math.log(float(transferval)) - math.log(min(plotting_dict[plotmetric].keys()))) / (math.log(max(plotting_dict[plotmetric].keys())) - math.log(min(plotting_dict[plotmetric].keys()))))
+        if transferparam != "lorarank":
+            color = cmap((math.log(float(transferval)) - math.log(min(plotting_dict[plotmetric].keys()))) / (math.log(max(plotting_dict[plotmetric].keys())) - math.log(min(plotting_dict[plotmetric].keys()))))
+        else:
+            # Hack to avoid the lighest colour in the inferno colour scheme
+            color = cmap((math.log(float(transferval)) - math.log(min(plotting_dict[plotmetric].keys()))) / (math.log(max(plotting_dict[plotmetric].keys())*1.5) - math.log(min(plotting_dict[plotmetric].keys()))))
         if transferparam == "initscale":
             # Change transferval to a string which is 4^exponent (in latex). They are all powers of 4, so make sure the exponent is an integer.
             exponent = int(math.log(float(transferval), 4))
             transferval = f"$4^{{{exponent}}}$"
-        elif transferparam == "widthmult" or transferparam == "depthmult":
+        elif transferparam == "widthmult" or transferparam == "depthmult" or transferparam == "lorarank":
             # Change transferval to a string which is 2^exponent (in latex). They are all powers of 2, so make sure the exponent is an integer.
             exponent = int(math.log(float(transferval), 2))
             transferval = f"$2^{{{exponent}}}$"

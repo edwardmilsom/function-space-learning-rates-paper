@@ -19,6 +19,8 @@ def main():
     parser.add_argument("--average_over_last_n", type=int, default=1, help="Average over the last n values")
     parser.add_argument("--y_axis_logscale", action="store_true", help="Use log scale for y axis")
     parser.add_argument("--plotmetric", type=str, choices=["train_losses", "test_losses", "train_accuracies", "test_accuracies","train_perplexities","test_perplexities"], default="train_losses", help="Metric to plot")
+    parser.add_argument("--onlytrainloss", action="store_true", help="Only plot train losses")
+    parser.add_argument("--tupleinsteadofvalue", action="store_true", help="Plot tuples instead of values")
 
     args = parser.parse_args()
     
@@ -32,6 +34,8 @@ def main():
         transferparam=args.transferparam,
         plotmetric=args.plotmetric,
         perplexity_or_accuracy=args.perplexity_or_accuracy,
+        onlytrainloss=args.onlytrainloss,
+        tupleinsteadofvalue=args.tupleinsteadofvalue,
         do_not_ignore_nan=args.do_not_ignore_nan,
         average_over_last_n=args.average_over_last_n,
         y_axis_logscale=args.y_axis_logscale

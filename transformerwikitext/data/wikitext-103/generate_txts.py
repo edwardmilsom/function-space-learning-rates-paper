@@ -14,7 +14,7 @@ with open("valid.txt", "w") as f:
     for l in valid_data:
         f.write(l)
 
-# Keep saving data to train.txt until it hits 55MB (5x bigger than wikitext-2, i.e. 5 epochs)
+# Keep saving data to train.txt until it hits 55MB (5x bigger than wikitext-2)
 with open("train.txt", "w") as f:
     size = 0
     for l in train_data:

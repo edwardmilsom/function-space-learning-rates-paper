@@ -11,8 +11,14 @@ from pathlib import Path
 import pickle as pk
 from argparse import Namespace
 from dataset import create_pretrain_dataloader
+import os
+import sys
 
-from normalised_optimizer import WrapperUpdateNormaliser
+# Get the parent directory
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+# Add it to sys.path
+sys.path.insert(0, parent_dir)
+from flerm import FLeRM
 CHECKPOINT = "openai-community/gpt2"
 
 MAX_N_ITER=500
@@ -124,17 +130,19 @@ def run_exps(args):
         runname = f"width{widthmult}_seed{seed}_lr{args.lr}"
         if enable_wandb:
             wandb.init(project="gpt2_peft_mathpile_proper", name=runname, config=ss, reinit=True)
-        try:
-            metrics = ft_on_mathpile(args, enable_wandb=enable_wandb, POSTFIX=POSTFIX)
-        except Exception as e:
-            metrics = None
-            from warnings import warn
-            warn("failed for some reason")
-            print("=== exc ===")
-            print(e)
-            print("=== args===")
-            print(args)
-            print("=== continuing anyway===")
+
+        metrics = ft_on_mathpile(args, enable_wandb=enable_wandb, POSTFIX=POSTFIX)
+        # try:
+        #     metrics = ft_on_mathpile(args, enable_wandb=enable_wandb, POSTFIX=POSTFIX)
+        # except Exception as e:
+        #     metrics = None
+        #     from warnings import warn
+        #     warn("failed for some reason")
+        #     print("=== exc ===")
+        #     print(e)
+        #     print("=== args===")
+        #     print(args)
+        #     print("=== continuing anyway===")
             # raise e
 
         # results[f"widthmult={args.widthmult}"][f"lr={lr}"][f"seed={seed}"] = metrics
@@ -214,7 +222,7 @@ def ft_on_mathpile(args, enable_wandb, POSTFIX=None):
             elif 'lora_A' in name:
                 function_space_param_groups.append({'params': [param], 'lr': args.lr, 'use_flerm': True, 'name': name})
                 fs_named_parameters.append((name, param))
-    fs_optimizer = AdamW(function_space_param_groups)
+    fs_optimizer = AdamW(function_space_param_groups) # This is actually Adam, since the default weight decay is 0 in the transformers library.
 
     if args.joint:
         ## record parameters which are joint in terms of functional learning rate
@@ -254,7 +262,7 @@ def ft_on_mathpile(args, enable_wandb, POSTFIX=None):
             single_seed_observed_masses_training_dict = torch.load(load_masses_path, weights_only=True)
             for key in single_seed_observed_masses_training_dict:
                 for i in range(len(single_seed_observed_masses_training_dict[key])):
-                    single_seed_observed_masses_training_dict[key][i] = single_seed_observed_masses_training_dict[key][i].item() # Convert the tensors to floats
+                    single_seed_observed_masses_training_dict[key][i] = single_seed_observed_masses_training_dict[key][i]
             if not obs_masses_avg_seeds_dict_inited:
                 obs_masses_avg_seeds_dict = single_seed_observed_masses_training_dict
                 obs_masses_avg_seeds_dict_inited = True
@@ -298,20 +306,25 @@ def ft_on_mathpile(args, enable_wandb, POSTFIX=None):
 
     ## ~10k --> 100
 
-    normalizer = WrapperUpdateNormaliser(peft_model, fs_optimizer,
-                                         outerlr=args.lr, beta=0.95,
-                                         approx_type='kronecker',
-                                         masses = masses,
+    def peft_model_output_closure(inputtuple):
+        inputtokens = inputtuple[0]
+        msk = inputtuple[1]
+        return peft_model(inputtokens, attention_mask=msk).logits
+
+
+    normalizer = FLeRM(peft_model_output_closure, fs_optimizer,
+                                         outerlr=args.lr,
                                          named_parameters=fs_named_parameters,
-                                         joint_parameters=joint_parameters,
-                                         dataloader=train_dataloader,
-                                         eps=args.eps,
+                                         beta=0.9,
+                                         approx_type='kronecker',
+                                         baseFSLRs = masses
                                          )
     if args.only_measure_masses:
         normalisers_iters_dict = {name: [] for name, _ in fs_named_parameters}
 
     init_flerm_n = args.init_flerm_n
-    schedule = [init_flerm_n + 1] + list(range(50, MAX_N_ITER+1, 50))
+    # schedule = [init_flerm_n + 1] + list(range(50, MAX_N_ITER+1, 50))
+    schedule = [init_flerm_n + 1] # Only apply FLeRM once, like in the rest of the experiments
     print(schedule)
     for epoch in range(num_epochs):
         iterator_ = range(MAX_N_ITER+1)
@@ -344,14 +357,17 @@ def ft_on_mathpile(args, enable_wandb, POSTFIX=None):
 
             if args.normalized and iter_n == init_flerm_n:
                 ## do 40 lots of warmup
-                normalizer.update_lrs(_input, modify_lrs=False, reuse_previous_weight_updates=False)
+                flerm_batch = next(train_dataloader)
+                _flerminput = flerm_batch['input'].to(device)
+                _flermmsk = flerm_batch['mask'].to(device)
+                normalizer.update_lrs((_flerminput,_flermmsk), modify_lrs=False, reuse_previous_weight_updates=False)
                 for _ in range(39):
-                    normalisers = normalizer.update_lrs(_input, modify_lrs=False, reuse_previous_weight_updates=True, return_delta_ell_fs=True)
+                    normalisers = normalizer.update_lrs((_flerminput,_flermmsk), modify_lrs=False, reuse_previous_weight_updates=True, return_delta_ell_fs=True)
             elif args.normalized and iter_n in schedule:
                 if not args.only_measure_masses:
-                    normalizer.update_lrs(_input) # Replace the last update with the normalised update, and update the learning rates for subsequent updates.
+                    normalizer.update_lrs((_flerminput,_flermmsk)) # Replace the last update with the normalised update, and update the learning rates for subsequent updates.
                 elif args.normalized and args.only_measure_masses:
-                    normalisers: list = normalizer.update_lrs(_input, modify_lrs=False, return_delta_ell_fs=True) # Instead of actually changing the LRs, just return what the estimate dF caused by each parameter's update is (for LR=1).
+                    normalisers: list = normalizer.update_lrs((_flerminput,_flermmsk), modify_lrs=False, return_delta_ell_fs=True) # Instead of actually changing the LRs, just return what the estimate dF caused by each parameter's update is (for LR=1).
                     for (name,_), nmlsr in zip(fs_named_parameters, normalisers):
                         normalisers_iters_dict[name].append(nmlsr) # param_name -> float
 
@@ -372,18 +388,18 @@ def ft_on_mathpile(args, enable_wandb, POSTFIX=None):
 
         ## save results and the masses
         with Lock():
-            standard_metrics = {'train_losses': metrics['avg_train_loss']}
+            alt_metrics = {'train_losses': metrics['avg_train_loss']}
 
             if hasattr(args, 'save_name') and args.save_name is not None:
-                torch.save(standard_metrics, args.save_name)
+                torch.save(alt_metrics, args.save_name)
             else:
                 normstring = "normalized" if args.normalized else "unnormalized"
                 recorded_masses = "recorded_masses" if args.only_measure_masses else "no_recorded_masses"
 
                 nameprefix = normstring + "_" + recorded_masses
-                path = f"standard_mountain_metrics{POSTFIX}/{nameprefix}_metrics_widthmult_{args.widthmult}_lr_{args.lr}_{args.dataset}_seed_{args.random_seed}.pt"
+                path = f"alt_mountain_metrics{POSTFIX}/{nameprefix}_{args.dataset}_results_widthmult_{args.widthmult}_depthmult_1_initscale_1.0_lr_{args.lr}_seed_{args.random_seed}.pt"
                 Path(path).parent.mkdir(parents=True, exist_ok=True)
-                torch.save(standard_metrics, path)
+                torch.save(alt_metrics, path)
 
             if args.only_measure_masses:
                 # Save the normalisers_iters_dict
@@ -410,7 +426,7 @@ if __name__ == '__main__':
     parser.add_argument("--init_flerm_n", type=int, default=5)
     parser.add_argument("--lora_init", type=str, default='gaussian', choices=['default', 'pissa', 'gaussian'])
     parser.add_argument("--dataset", type=str, default='mathpile', choices=['cold_french_law', 'mathpile'])
-    parser.add_argument("--eps", type=float, default=0.)
+    # parser.add_argument("--eps", type=float, default=0.)
     args = parser.parse_args()
     if args.lr <= 0.: args.lr = None
     if args.widthmult <= 0: args.widthmult = None

@@ -8,6 +8,7 @@ parser.add_argument("--allowmissingfiles", action="store_true")
 parser.add_argument("--transferparam", type=str, choices=["widthmult", "depthmult","initscale"], default="widthmult")
 parser.add_argument("--perplexity_or_accuracy", type=str, choices=["perplexity", "accuracy"], default="perplexity")
 parser.add_argument("--default_other_transferparam_value", type=int, default=1)
+parser.add_argument("--onlytrainloss", action="store_true")
 args = parser.parse_args()
 
 name_prefix = args.name_prefix
@@ -54,6 +55,9 @@ if args.perplexity_or_accuracy == "perplexity":
 else:
     metrics = ["train_losses", "test_losses", "train_accuracies", "test_accuracies"]
 
+if args.onlytrainloss:
+    metrics = ["train_losses"]
+
 def build_filename(transferparamval, lr, seed):
     # if args.transferparam == "widthmult":
     #     return f"{name_prefix}_widthmult_{transferparamval}_depthmult_{args.default_other_transferparam_value}_lr_{lr}_seed_{seed}.pt"
@@ -84,6 +88,8 @@ for key in metrics:
                     else:
                         merged_dict[key][transferparamval][lr][seed] = None
 
+from math import nan
+
 # Ensure that all metrics have the same number of transfervals, learning rates, seeds, and epochs (except when they are None)
 num_transfervals = None
 num_lrs = None
@@ -100,14 +106,15 @@ for key in merged_dict:
                         num_logs[key] = len(merged_dict[key][transferval][lr][seed])
                     elif num_logs[key] == None:
                         num_logs[key] = len(merged_dict[key][transferval][lr][seed])
-                    
                     else:
+                        if len(merged_dict[key][transferval][lr][seed]) < num_logs[key]:
+                            print(f"Warning:Empty log. Filling missing entries with NaN (nameprefix={name_prefix}, key={key}, transferval={transferval}, lr={lr}, seed={seed})")
+                            for i in range(len(merged_dict[key][transferval][lr][seed]), num_logs[key]):
+                                merged_dict[key][transferval][lr][seed].append(nan)
                         assert len(merged_dict[key]) == num_transfervals
                         assert len(merged_dict[key][transferval]) == num_lrs
                         assert len(merged_dict[key][transferval][lr]) == num_seeds
                         assert len(merged_dict[key][transferval][lr][seed]) == num_logs[key]
-
-from math import nan
 
 # Replace all None values with a list of num_epochs NaNs
 for key in merged_dict:

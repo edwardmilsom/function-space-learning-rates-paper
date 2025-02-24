@@ -8,7 +8,7 @@ import argparse
 from transfer_plotting_v2 import create_training_plots_on_axis
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--experiment', type=str, help='Experiment name', default="regularupdateablation")
+parser.add_argument('--experiment', type=str, help='Experiment name', default="onlyflermfirststep")
 
 args = parser.parse_args()
 
@@ -27,14 +27,14 @@ plt.rcParams['text.latex.preamble'] = r'''
 fig, axes = plt.subplots(2, 4, figsize=(12, 5))
 
 # regularupdateablation runs
-if args.experiment == "regularupdateablation":
-    filenames   = ["jan24emawarmup_resmlp_unnormed_depth.pt", "jan24emawarmuppostnormqknorm_transformer_unnormed_depth.pt", "jan24emawarmupprenormqknorm_transformer_unnormed_depth.pt", "jan24emawarmuppostnormpreresqknorm_transformer_unnormed_depth.pt", "jan24emawarmup_resmlp_normed_depth.pt", "jan24emawarmuppostnormqknorm_transformer_normed_depth.pt", "jan24emawarmupprenormqknorm_transformer_normed_depth.pt", "jan24emawarmuppostnormpreresqknorm_transformer_normed_depth.pt"]
+if args.experiment == "onlyflermfirststep":
+    filenames   = filenames   = ["jan24emawarmup_resmlp_unnormed_depth.pt", "jan24emawarmuppostnormqknorm_transformer_unnormed_depth.pt", "jan24emawarmupprenormqknorm_transformer_unnormed_depth.pt", "jan24emawarmuppostnormpreresqknorm_transformer_unnormed_depth.pt", "jan24emawarmup_resmlp_normed_depth.pt", "jan24emawarmuppostnormqknorm_transformer_normed_depth.pt", "jan24emawarmupprenormqknorm_transformer_normed_depth.pt", "jan24emawarmuppostnormpreresqknorm_transformer_normed_depth.pt"]
 # Equal mass ablation (uses same unnormed files as regularupdateablation runs)
 elif args.experiment == "equalmassablation":
     filenames = ["jan24emawarmup_resmlp_unnormed_depth.pt", "jan24emawarmuppostnormqknorm_transformer_unnormed_depth.pt", "jan24emawarmupprenormqknorm_transformer_unnormed_depth.pt", "jan24emawarmuppostnormpreresqknorm_transformer_unnormed_depth.pt", "jan28equalmassablationonlyflermfirststep_resmlp_normed_depth.pt", "jan28equalmassablationonlyflermfirststeppostnormqknorm_transformer_normed_depth.pt", "jan28equalmassablationonlyflermfirststepprenormqknorm_transformer_normed_depth.pt", "jan28equalmassablationonlyflermfirststeppostnormpreresqknorm_transformer_normed_depth.pt"]
 elif args.experiment == "equalmassbutstillsplittingdepthproperlyablation":
     filenames = ["jan24emawarmup_resmlp_unnormed_depth.pt", "jan24emawarmuppostnormqknorm_transformer_unnormed_depth.pt", "jan24emawarmupprenormqknorm_transformer_unnormed_depth.pt", "jan24emawarmuppostnormpreresqknorm_transformer_unnormed_depth.pt", "jan29equalmassbutstillsplittingdepthproperlyablationonlyflermfirststep_resmlp_normed_depth.pt", "jan29equalmassbutstillsplittingdepthproperlyablationonlyflermfirststeppostnormqknorm_transformer_normed_depth.pt", "jan29equalmassbutstillsplittingdepthproperlyablationonlyflermfirststepprenormqknorm_transformer_normed_depth.pt", "jan29equalmassbutstillsplittingdepthproperlyablationonlyflermfirststeppostnormpreresqknorm_transformer_normed_depth.pt"]
-elif args.experiment == "onlyflermfirststep":
+elif args.experiment == "regularupdateablation":
     filenames = ["jan24emawarmup_resmlp_unnormed_depth.pt", "jan24emawarmuppostnormqknorm_transformer_unnormed_depth.pt", "jan24emawarmupprenormqknorm_transformer_unnormed_depth.pt", "jan24emawarmuppostnormpreresqknorm_transformer_unnormed_depth.pt", "jan27onlyflermfirststepablation_resmlp_normed_depth.pt", "jan27onlyflermfirststepablationpostnormqknorm_transformer_normed_depth.pt", "jan27onlyflermfirststepablationprenormqknorm_transformer_normed_depth.pt", "jan27onlyflermfirststepablationpostnormpreresqknorm_transformer_normed_depth.pt"]
 
 # Call the function for each subplot
@@ -340,8 +340,8 @@ for i, ax in enumerate(axes.flat):
     metrics = create_training_plots_on_axis(ax, filename=filenames[i], transferparam="initscale")
 
 # Only use the legend on one plot
-axes[1].legend()
-axes[1].legend(loc='upper left', prop={'size': 10})
+axes[0].legend()
+axes[0].legend(loc='upper left', prop={'size': 10})
 
 # Set the x and y ranges for each plot.
 if args.experiment == "regularupdateablation" or args.experiment == "onlyflermfirststep":

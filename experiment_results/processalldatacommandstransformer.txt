@@ -1,0 +1,125 @@
+# feb19adamw_postnormtransformer_unnormalised_width, feb19adamw_postnormtransformer_unnormalised_depth, feb19adamwepsilon1e-4onlyflermfirststep_postnormtransformer_normalised_width, feb19adamwepsilon1e-4onlyflermfirststep_postnormtransformer_normalised_depth, feb19adamwepsilon1e-4flermevery100_postnormtransformer_normalised_width, feb19adamwepsilon1e-4flermevery100_postnormtransformer_normalised_depth
+# feb19adamw_prenormtransformer_unnormalised_width, feb19adamw_prenormtransformer_unnormalised_depth, feb19adamwepsilon1e-4onlyflermfirststep_prenormtransformer_normalised_width, feb19adamwepsilon1e-4onlyflermfirststep_prenormtransformer_normalised_depth, feb19adamwepsilon1e-4flermevery100_prenormtransformer_normalised_width, feb19adamwepsilon1e-4flermevery100_prenormtransformer_normalised_depth
+# feb19adamw_postnormprerestransformer_unnormalised_width, feb19adamw_postnormprerestransformer_unnormalised_depth, feb19adamwepsilon1e-4onlyflermfirststep_postnormprerestransformer_normalised_width, feb19adamwepsilon1e-4onlyflermfirststep_postnormprerestransformer_normalised_depth, feb19adamwepsilon1e-4flermevery100_postnormprerestransformer_normalised_width, feb19adamwepsilon1e-4flermevery100_postnormprerestransformer_normalised_depth
+# feb19adamw_postnormprerestransformer_unnormalised_initscale, feb19adamwepsilon1e-4onlyflermfirststep_postnormprerestransformer_normalised_initscale, feb19adamwepsilon1e-4flermevery100_postnormprerestransformer_normalised_initscale
+
+#######################
+# postnormtransformer #
+#######################
+
+cp feb19adamw_postnormtransformer_unnormalised_width/*.pt .
+python merge_individual_results.py --name_prefix postnormunnormalisedwidthTransferforwardPassRootLadam_results --transferparam widthmult --allowmissingfiles
+mv postnormunnormalisedwidthTransferforwardPassRootLadam_results_widthmulttransfer_merged.pt ../feb19adamw_postnormtransformer_unnormed_width.pt
+rm *.pt
+
+cp feb19adamw_postnormtransformer_unnormalised_depth/*.pt .
+python merge_individual_results.py --name_prefix postnormunnormaliseddepthTransferforwardPassRootLadam_results --transferparam depthmult --allowmissingfiles
+mv postnormunnormaliseddepthTransferforwardPassRootLadam_results_depthmulttransfer_merged.pt ../feb19adamw_postnormtransformer_unnormed_depth.pt
+rm *.pt
+
+cp feb19adamwepsilon1e-4onlyflermfirststep_postnormtransformer_normalised_width/*.pt .
+python merge_individual_results.py --name_prefix onlyflermfirststeppostnormnormalisedwidthTransferforwardPassRootLnormalisedadam_results --transferparam widthmult --allowmissingfiles
+mv onlyflermfirststeppostnormnormalisedwidthTransferforwardPassRootLnormalisedadam_results_widthmulttransfer_merged.pt ../feb19adamwepsilon1e-4onlyflermfirststep_postnormtransformer_normed_width.pt
+rm *.pt
+
+cp feb19adamwepsilon1e-4onlyflermfirststep_postnormtransformer_normalised_depth/*.pt .
+python merge_individual_results.py --name_prefix onlyflermfirststeppostnormnormaliseddepthTransferforwardPassRootLnormalisedadam_results --transferparam depthmult --allowmissingfiles
+mv onlyflermfirststeppostnormnormaliseddepthTransferforwardPassRootLnormalisedadam_results_depthmulttransfer_merged.pt ../feb19adamwepsilon1e-4onlyflermfirststep_postnormtransformer_normed_depth.pt
+rm *.pt
+
+cp feb19adamwepsilon1e-4flermevery100_postnormtransformer_normalised_width/*.pt .
+python merge_individual_results.py --name_prefix postnormnormalisedwidthTransferforwardPassRootLnormalisedadam_results --transferparam widthmult --allowmissingfiles
+mv postnormnormalisedwidthTransferforwardPassRootLnormalisedadam_results_widthmulttransfer_merged.pt ../feb19adamwepsilon1e-4flermevery100_postnormtransformer_normed_width.pt
+rm *.pt
+
+cp feb19adamwepsilon1e-4flermevery100_postnormtransformer_normalised_depth/*.pt .
+python merge_individual_results.py --name_prefix postnormnormaliseddepthTransferforwardPassRootLnormalisedadam_results --transferparam depthmult --allowmissingfiles
+mv postnormnormaliseddepthTransferforwardPassRootLnormalisedadam_results_depthmulttransfer_merged.pt ../feb19adamwepsilon1e-4flermevery100_postnormtransformer_normed_depth.pt
+rm *.pt
+
+#######################
+# prenormtransformer  #
+#######################
+
+cp feb19adamw_prenormtransformer_unnormalised_width/*.pt .
+python merge_individual_results.py --name_prefix prenormunnormalisedwidthTransferforwardPassRootLadam_results --transferparam widthmult --allowmissingfiles
+mv prenormunnormalisedwidthTransferforwardPassRootLadam_results_widthmulttransfer_merged.pt ../feb19adamw_prenormtransformer_unnormed_width.pt
+rm *.pt
+
+cp feb19adamw_prenormtransformer_unnormalised_depth/*.pt .
+python merge_individual_results.py --name_prefix prenormunnormaliseddepthTransferforwardPassRootLadam_results --transferparam depthmult --allowmissingfiles
+mv prenormunnormaliseddepthTransferforwardPassRootLadam_results_depthmulttransfer_merged.pt ../feb19adamw_prenormtransformer_unnormed_depth.pt
+rm *.pt
+
+cp feb19adamwepsilon1e-4onlyflermfirststep_prenormtransformer_normalised_width/*.pt .
+python merge_individual_results.py --name_prefix onlyflermfirststepprenormnormalisedwidthTransferforwardPassRootLnormalisedadam_results --transferparam widthmult --allowmissingfiles
+mv onlyflermfirststepprenormnormalisedwidthTransferforwardPassRootLnormalisedadam_results_widthmulttransfer_merged.pt ../feb19adamwepsilon1e-4onlyflermfirststep_prenormtransformer_normed_width.pt
+rm *.pt
+
+cp feb19adamwepsilon1e-4onlyflermfirststep_prenormtransformer_normalised_depth/*.pt .
+python merge_individual_results.py --name_prefix onlyflermfirststepprenormnormaliseddepthTransferforwardPassRootLnormalisedadam_results --transferparam depthmult --allowmissingfiles
+mv onlyflermfirststepprenormnormaliseddepthTransferforwardPassRootLnormalisedadam_results_depthmulttransfer_merged.pt ../feb19adamwepsilon1e-4onlyflermfirststep_prenormtransformer_normed_depth.pt
+rm *.pt
+
+cp feb19adamwepsilon1e-4flermevery100_prenormtransformer_normalised_width/*.pt .
+python merge_individual_results.py --name_prefix prenormnormalisedwidthTransferforwardPassRootLnormalisedadam_results --transferparam widthmult --allowmissingfiles
+mv prenormnormalisedwidthTransferforwardPassRootLnormalisedadam_results_widthmulttransfer_merged.pt ../feb19adamwepsilon1e-4flermevery100_prenormtransformer_normed_width.pt
+rm *.pt
+
+cp feb19adamwepsilon1e-4flermevery100_prenormtransformer_normalised_depth/*.pt .
+python merge_individual_results.py --name_prefix prenormnormaliseddepthTransferforwardPassRootLnormalisedadam_results --transferparam depthmult --allowmissingfiles
+mv prenormnormaliseddepthTransferforwardPassRootLnormalisedadam_results_depthmulttransfer_merged.pt ../feb19adamwepsilon1e-4flermevery100_prenormtransformer_normed_depth.pt
+rm *.pt
+
+#############################
+# postnormprerestransformer #
+#############################
+
+cp feb19adamw_postnormprerestransformer_unnormalised_width/*.pt .
+python merge_individual_results.py --name_prefix postnormpreresunnormalisedwidthTransferforwardPassRootLadam_results --transferparam widthmult --allowmissingfiles
+mv postnormpreresunnormalisedwidthTransferforwardPassRootLadam_results_widthmulttransfer_merged.pt ../feb19adamw_postnormprerestransformer_unnormed_width.pt
+rm *.pt
+
+cp feb19adamw_postnormprerestransformer_unnormalised_depth/*.pt .
+python merge_individual_results.py --name_prefix postnormpreresunnormaliseddepthTransferforwardPassRootLadam_results --transferparam depthmult --allowmissingfiles
+mv postnormpreresunnormaliseddepthTransferforwardPassRootLadam_results_depthmulttransfer_merged.pt ../feb19adamw_postnormprerestransformer_unnormed_depth.pt
+rm *.pt
+
+cp feb19adamwepsilon1e-4onlyflermfirststep_postnormprerestransformer_normalised_width/*.pt .
+python merge_individual_results.py --name_prefix onlyflermfirststeppostnormpreresnormalisedwidthTransferforwardPassRootLnormalisedadam_results --transferparam widthmult --allowmissingfiles
+mv onlyflermfirststeppostnormpreresnormalisedwidthTransferforwardPassRootLnormalisedadam_results_widthmulttransfer_merged.pt ../feb19adamwepsilon1e-4onlyflermfirststep_postnormprerestransformer_normed_width.pt
+rm *.pt
+
+cp feb19adamwepsilon1e-4onlyflermfirststep_postnormprerestransformer_normalised_depth/*.pt .
+python merge_individual_results.py --name_prefix onlyflermfirststeppostnormpreresnormaliseddepthTransferforwardPassRootLnormalisedadam_results --transferparam depthmult --allowmissingfiles
+mv onlyflermfirststeppostnormpreresnormaliseddepthTransferforwardPassRootLnormalisedadam_results_depthmulttransfer_merged.pt ../feb19adamwepsilon1e-4onlyflermfirststep_postnormprerestransformer_normed_depth.pt
+rm *.pt
+
+cp feb19adamwepsilon1e-4flermevery100_postnormprerestransformer_normalised_width/*.pt .
+python merge_individual_results.py --name_prefix postnormpreresnormalisedwidthTransferforwardPassRootLnormalisedadam_results --transferparam widthmult --allowmissingfiles
+mv postnormpreresnormalisedwidthTransferforwardPassRootLnormalisedadam_results_widthmulttransfer_merged.pt ../feb19adamwepsilon1e-4flermevery100_postnormprerestransformer_normed_width.pt
+rm *.pt
+
+cp feb19adamwepsilon1e-4flermevery100_postnormprerestransformer_normalised_depth/*.pt .
+python merge_individual_results.py --name_prefix postnormpreresnormaliseddepthTransferforwardPassRootLnormalisedadam_results --transferparam depthmult --allowmissingfiles
+mv postnormpreresnormaliseddepthTransferforwardPassRootLnormalisedadam_results_depthmulttransfer_merged.pt ../feb19adamwepsilon1e-4flermevery100_postnormprerestransformer_normed_depth.pt
+rm *.pt
+
+#######################################
+# postnormprerestransformer initscale #
+#######################################
+
+cp feb19adamw_postnormprerestransformer_unnormalised_initscale/*.pt .
+python merge_individual_results.py --name_prefix postnormpreresunnormalisedinitscaleTransferforwardPassRootLadam_results --transferparam initscale --allowmissingfiles
+mv postnormpreresunnormalisedinitscaleTransferforwardPassRootLadam_results_initscaletransfer_merged.pt ../feb19adamw_postnormprerestransformer_unnormed_initscale.pt
+rm *.pt
+
+cp feb19adamwepsilon1e-4onlyflermfirststep_postnormprerestransformer_normalised_initscale/*.pt .
+python merge_individual_results.py --name_prefix onlyflermfirststeppostnormpreresnormalisedinitscaleTransferforwardPassRootLnormalisedadam_results --transferparam initscale --allowmissingfiles
+mv onlyflermfirststeppostnormpreresnormalisedinitscaleTransferforwardPassRootLnormalisedadam_results_initscaletransfer_merged.pt ../feb19adamwepsilon1e-4onlyflermfirststep_postnormprerestransformer_normed_initscale.pt
+rm *.pt
+
+cp feb19adamwepsilon1e-4flermevery100_postnormprerestransformer_normalised_initscale/*.pt .
+python merge_individual_results.py --name_prefix postnormpreresnormalisedinitscaleTransferforwardPassRootLnormalisedadam_results --transferparam initscale --allowmissingfiles
+mv postnormpreresnormalisedinitscaleTransferforwardPassRootLnormalisedadam_results_initscaletransfer_merged.pt ../feb19adamwepsilon1e-4flermevery100_postnormprerestransformer_normed_initscale.pt
+rm *.pt

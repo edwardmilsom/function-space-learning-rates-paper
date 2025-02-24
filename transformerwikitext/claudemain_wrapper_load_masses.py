@@ -112,6 +112,48 @@ elif use_mps:
 else:
     device = torch.device("cpu")
 
+# Weights and Biases init
+# import wandb
+
+# if args.measure_masses_only:
+#     wandb.init(
+#            project="_measuremasses_transformer_wikitext_test",
+#            config={
+#               "learning_rate": args.lr,
+#                "depth_multiplier": args.depth_mult,
+#                "width_multiplier": args.width_mult,
+#                "init_scale": args.init_scale,
+#                "seed": args.seed,
+#                "normalised": args.normalised,
+#                "optimiser": args.optimiser,
+#                "architecture": "Transformer",
+#                "dataset": "Wikitext-103 Subset",
+#                "epochs": 1,
+#            },
+#            # Organize runs with groups and job types
+#            group=f"{args.ptnormsprefix}_{args.ptprefix}_opt_{args.optimiser}_lr_{args.lr}",  # group by depthmult
+#            name=f"{args.ptnormsprefix}_{args.ptprefix}_opt_{args.optimiser}_lr_{args.lr}_dm_{args.depth_mult}_wm_{args.width_mult}_im_{args.init_scale}_s_{args.seed}"  # custom run name
+#        )
+# else:
+#     wandb.init(
+#             project="transformer_wikitext_test",
+#             config={
+#                 "learning_rate": args.lr,
+#                 "depth_multiplier": args.depth_mult,
+#                 "width_multiplier": args.width_mult,
+#                 "init_scale": args.init_scale,
+#                 "seed": args.seed,
+#                 "normalised": args.normalised,
+#                 "optimiser": args.optimiser,
+#                 "architecture": "Transformer",
+#                 "dataset": "Wikitext-103 Subset",
+#                 "epochs": 1,
+#             },
+#             # Organize runs with groups and job types
+#             group=f"{args.ptnormsprefix}_{args.ptprefix}_normalised_{args.normalised}_optimiser_{args.optimiser}_lr_{args.lr}",  # group by depthmult
+#             name=f"{args.ptnormsprefix}_{args.ptprefix}_normalised_{args.normalised}_optimiser_{args.optimiser}_lr_{args.lr}_depthmult_{args.depth_mult}_widthmult_{args.width_mult}_initscale_{args.init_scale}_seed_{args.seed}"  # custom run name
+#         )
+
 ###############################################################################
 # Load data
 ###############################################################################
@@ -422,6 +464,14 @@ def train():
             # train_perplexities.append(train_perplexity)
             # val_perplexities.append(val_perplexity)
 
+            # Weights and Biases logging
+            wandbdict = {f"train_loss (last {args.log_interval} batches)": cur_loss, "val_loss": val_loss}
+            # wandb.log({f"train_loss (last {args.log_interval} batches)": cur_loss, "val_loss": val_loss})
+            if args.measure_masses_only:
+                for namedparam, nmlsr in namedparam_normaliser_dict.items():
+                    wandbdict[f"normaliser/{namedparam[0]}"] = nmlsr
+            # wandb.log(wandbdict)
+
         if args.dry_run:
             break
 
@@ -431,9 +481,9 @@ def train():
     return train_loss
     
 
-#normalised_optimiser is in the parent directory, so we need to import it from ..
+#flerm is in the parent directory, so we need to import it from ..
 os.sys.path.append("..")
-from normalised_optimiser import WrapperUpdateNormaliser
+from flerm import FLeRM
 
 # Create a parameter group for each parameter in the model, so that we can set the learning rate for each parameter individually
 if args.normalised and not args.measure_masses_only:
@@ -480,6 +530,7 @@ masses = {}
 if not args.measure_masses_only and args.normalised and not args.equal_mass_ablation:
     seeds = [0, 1, 2, 3, 4, 5, 6, 7]
     #seeds = [args.seed]
+    # seeds = [0]
     obs_masses_avg_seeds_dict_inited = False
     obs_masses_avg_seeds_dict = {}
     if not args.equal_mass_but_still_splitting_depth_properly_ablation:
@@ -487,7 +538,7 @@ if not args.measure_masses_only and args.normalised and not args.equal_mass_abla
             single_seed_observed_masses_training_dict = torch.load(f"{args.ptnormsprefix}{args.normtype}transformerbasemodelempiricalmasses_lr_{args.lr}_seed_{seed}.ptnorms")
             for key in single_seed_observed_masses_training_dict:
                 for i in range(len(single_seed_observed_masses_training_dict[key])):
-                    single_seed_observed_masses_training_dict[key][i] = single_seed_observed_masses_training_dict[key][i].item() # Convert the tensors to floats
+                    single_seed_observed_masses_training_dict[key][i] = single_seed_observed_masses_training_dict[key][i]
             if not obs_masses_avg_seeds_dict_inited:
                 obs_masses_avg_seeds_dict = single_seed_observed_masses_training_dict
                 obs_masses_avg_seeds_dict_inited = True
@@ -542,8 +593,11 @@ if not args.measure_masses_only and args.normalised and not args.equal_mass_abla
 
     masses = generate_masses_dict(0, model)
 
+def model_output_closure(X):
+    return model(X)
+
 # Initialise the normaliser
-normaliser = WrapperUpdateNormaliser(model, optimiser, outerlr=args.lr, beta=args.normaliser_beta, approx_type=args.normaliser_approx_type, masses = masses)
+normaliser = FLeRM(model_output_closure, optimiser, args.lr, model.named_parameters(), beta=args.normaliser_beta, approx_type=args.normaliser_approx_type, baseFSLRs = masses)
 
 train_losses = []
 val_losses = []
@@ -582,6 +636,7 @@ except KeyboardInterrupt:
     print('-' * 89)
     print('Exiting from training early')
 
+# wandb.finish()
 
 # # Load the best saved model.
 # with open(args.save, 'rb') as f:

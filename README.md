@@ -1,9 +1,9 @@
-### Function-Space Learning Rates Paper
+### Function-Space Learning Rates
 
-Temporary repo for anonymous submission. Apologies for the mess. We are working on an easy-to-use library and clear instructions to replicate results.
+Code for the paper "Function-Space Learning Rates".
 
-Code for FLeRM / recording function-space learning rates is found in normalised_optimiser.py. LoRA experiments used a slightly modified version in lora/train_scripts/normalised_optimizer.py to handle LoRA parameter properly.
+If you are interested in trying FLeRM yourself, ignore all files except `flerm.py` and `flerm_example_training_script.py`. `flerm.py` is the entire "library" for FLeRM, making it very easy to use. `flerm_example_training_script.py` is an example training script that shows how to use FLeRM in a very standard setting, training an MLP with skip connections on CIFAR-10. We have made an effort to present and comment both of these files nicely, so hopefully they are fairly self-explanatory. Note that depth scaling is more complicated than width scaling because you need to copy / split the base function-space learning rates up between the new layers in the deeper model, but hopefully the code should be clear.
 
-mlpcifar10/mlp_cifar10.py is the training script for the ResMLP, pytorch_transformer_example/claudemain_wrapper_load_masses.py is the training script for the transformer, adapted from the transformer example given in the pytorch github. Both of these show how the code in normalised_optimiser.py is used with a model to use FLeRM. lora/train_scripts/{gpt2.py,llama3.py} are the training scripts for the LoRA experiments.
+All other files are for reproducing the plots / experiments from the paper. mlpcifar10/mlp_cifar10.py is the training script for the ResMLP, pytorch_transformer_example/claudemain_wrapper_load_masses.py is the training script for the transformer, adapted from the transformer example given in the pytorch github. lora/train_scripts/{gpt2.py,llama3.py} are the training scripts for the LoRA experiments. There are various bash files that run different experiment settings, which are hopefully not too indecipherable. Included also are .txt files containing bash commands for organising the outputs of the experiments. In the experiment_results folder is a python file along with more .txt files that show how to process the experiment results into aggregate results files. These can then be plotted with the `plot_grid.py` or `plot_lora.py` files (`plot_one_dict.py` is also available for producing single subplots).
 
 Usual requirements of pytorch, huggingface transformers, matplotlib, numpy etc.

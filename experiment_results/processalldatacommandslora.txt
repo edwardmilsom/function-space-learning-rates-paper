@@ -1,0 +1,82 @@
+# Folders: gpt2_cold_french_law_fix_a gpt2_cold_french_law_fix_b gpt2_mathpile_fix_a gpt2_mathpile_fix_b llama3_cold_fix_a llama3_cold_fix_b llama3_mathpile_fix_a llama3_mathpile_fix_b
+# Files in each folder: normalized_recorded... normalized_no_recorded...
+
+cp lorafeb16/alt_mountain_metrics_gpt2_cold_french_law_fix_a/normalized_recorded*.pt .
+python merge_individual_results.py --name_prefix normalized_recorded_masses_cold_french_law_results --allowmissingfiles --onlytrainloss
+mv normalized_recorded_masses_cold_french_law_results_widthmulttransfer_merged.pt ../lorafeb16_coldfrenchlaw_fixa_gpt2_unnormed.pt
+rm *.pt
+
+cp lorafeb16/alt_mountain_metrics_gpt2_cold_french_law_fix_a/normalized_no_recorded*.pt .
+python merge_individual_results.py --name_prefix normalized_no_recorded_masses_cold_french_law_results --allowmissingfiles --onlytrainloss
+mv normalized_no_recorded_masses_cold_french_law_results_widthmulttransfer_merged.pt ../lorafeb16_coldfrenchlaw_fixa_gpt2_normed.pt
+rm *.pt
+
+cp lorafeb16/alt_mountain_metrics_gpt2_cold_french_law_fix_b/normalized_recorded*.pt .
+python merge_individual_results.py --name_prefix normalized_recorded_masses_cold_french_law_results --allowmissingfiles --onlytrainloss
+mv normalized_recorded_masses_cold_french_law_results_widthmulttransfer_merged.pt ../lorafeb16_coldfrenchlaw_fixb_gpt2_unnormed.pt
+rm *.pt
+
+cp lorafeb16/alt_mountain_metrics_gpt2_cold_french_law_fix_b/normalized_no_recorded*.pt .
+python merge_individual_results.py --name_prefix normalized_no_recorded_masses_cold_french_law_results --allowmissingfiles --onlytrainloss
+mv normalized_no_recorded_masses_cold_french_law_results_widthmulttransfer_merged.pt ../lorafeb16_coldfrenchlaw_fixb_gpt2_normed.pt
+rm *.pt
+
+cp lorafeb16/alt_mountain_metrics_gpt2_mathpile_fix_a/normalized_recorded*.pt .
+python merge_individual_results.py --name_prefix normalized_recorded_masses_mathpile_results --allowmissingfiles --onlytrainloss
+mv normalized_recorded_masses_mathpile_results_widthmulttransfer_merged.pt ../lorafeb16_mathpile_fixa_gpt2_unnormed.pt
+rm *.pt
+
+cp lorafeb16/alt_mountain_metrics_gpt2_mathpile_fix_a/normalized_no_recorded*.pt .
+python merge_individual_results.py --name_prefix normalized_no_recorded_masses_mathpile_results --allowmissingfiles --onlytrainloss
+mv normalized_no_recorded_masses_mathpile_results_widthmulttransfer_merged.pt ../lorafeb16_mathpile_fixa_gpt2_normed.pt
+rm *.pt
+
+cp lorafeb16/alt_mountain_metrics_gpt2_mathpile_fix_b/normalized_recorded*.pt .
+python merge_individual_results.py --name_prefix normalized_recorded_masses_mathpile_results --allowmissingfiles --onlytrainloss
+mv normalized_recorded_masses_mathpile_results_widthmulttransfer_merged.pt ../lorafeb16_mathpile_fixb_gpt2_unnormed.pt
+rm *.pt
+
+cp lorafeb16/alt_mountain_metrics_gpt2_mathpile_fix_b/normalized_no_recorded*.pt .
+python merge_individual_results.py --name_prefix normalized_no_recorded_masses_mathpile_results --allowmissingfiles --onlytrainloss
+mv normalized_no_recorded_masses_mathpile_results_widthmulttransfer_merged.pt ../lorafeb16_mathpile_fixb_gpt2_normed.pt
+rm *.pt
+
+cp lorafeb16/alt_mountain_metrics_llama3_cold_french_law_fix_a/normalized_recorded*.pt .
+python merge_individual_results.py --name_prefix normalized_recorded_masses_cold_french_law_results --allowmissingfiles --onlytrainloss
+mv normalized_recorded_masses_cold_french_law_results_widthmulttransfer_merged.pt ../lorafeb16_coldfrenchlaw_fixa_llama3_unnormed.pt
+rm *.pt
+
+cp lorafeb16/alt_mountain_metrics_llama3_cold_french_law_fix_a/normalized_no_recorded*.pt .
+python merge_individual_results.py --name_prefix normalized_no_recorded_masses_cold_french_law_results --allowmissingfiles --onlytrainloss
+mv normalized_no_recorded_masses_cold_french_law_results_widthmulttransfer_merged.pt ../lorafeb16_coldfrenchlaw_fixa_llama3_normed.pt
+rm *.pt
+
+cp lorafeb16/alt_mountain_metrics_llama3_cold_french_law_fix_b/normalized_recorded*.pt .
+python merge_individual_results.py --name_prefix normalized_recorded_masses_cold_french_law_results --allowmissingfiles --onlytrainloss
+mv normalized_recorded_masses_cold_french_law_results_widthmulttransfer_merged.pt ../lorafeb16_coldfrenchlaw_fixb_llama3_unnormed.pt
+rm *.pt
+
+cp lorafeb16/alt_mountain_metrics_llama3_cold_french_law_fix_b/normalized_no_recorded*.pt .
+python merge_individual_results.py --name_prefix normalized_no_recorded_masses_cold_french_law_results --allowmissingfiles --onlytrainloss
+mv normalized_no_recorded_masses_cold_french_law_results_widthmulttransfer_merged.pt ../lorafeb16_coldfrenchlaw_fixb_llama3_normed.pt
+rm *.pt
+
+cp lorafeb16/alt_mountain_metrics_llama3_mathpile_fix_a/normalized_recorded*.pt .
+python merge_individual_results.py --name_prefix normalized_recorded_masses_mathpile_results --allowmissingfiles --onlytrainloss
+mv normalized_recorded_masses_mathpile_results_widthmulttransfer_merged.pt ../lorafeb16_mathpile_fixa_llama3_unnormed.pt
+rm *.pt
+
+cp lorafeb16/alt_mountain_metrics_llama3_mathpile_fix_a/normalized_no_recorded*.pt .
+python merge_individual_results.py --name_prefix normalized_no_recorded_masses_mathpile_results --allowmissingfiles --onlytrainloss
+mv normalized_no_recorded_masses_mathpile_results_widthmulttransfer_merged.pt ../lorafeb16_mathpile_fixa_llama3_normed.pt
+rm *.pt
+
+cp lorafeb16/alt_mountain_metrics_llama3_mathpile_fix_b/normalized_recorded*.pt .
+python merge_individual_results.py --name_prefix normalized_recorded_masses_mathpile_results --allowmissingfiles --onlytrainloss
+mv normalized_recorded_masses_mathpile_results_widthmulttransfer_merged.pt ../lorafeb16_mathpile_fixb_llama3_unnormed.pt
+rm *.pt
+
+cp lorafeb16/alt_mountain_metrics_llama3_mathpile_fix_b/normalized_no_recorded*.pt .
+python merge_individual_results.py --name_prefix normalized_no_recorded_masses_mathpile_results --allowmissingfiles --onlytrainloss
+mv normalized_no_recorded_masses_mathpile_results_widthmulttransfer_merged.pt ../lorafeb16_mathpile_fixb_llama3_normed.pt
+rm *.pt
