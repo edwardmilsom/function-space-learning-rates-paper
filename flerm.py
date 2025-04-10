@@ -23,13 +23,22 @@ class FLeRM(nn.Module):
         return iter(param for name, param in self._named_parameters)
     
     # Should we make the user change beta based on how often they call this, or should we make them provide the number of iterations between calls?
-    def __init__(self, modeloutputclosure, optimiser, outerlr, named_parameters, baseFSLRs=None, eps=0, beta=0.9, approx_type="kronecker",):
+    def __init__(self, modeloutputclosure, optimiser, outerlr, named_parameters, baseFSLRs=None, eps=0, beta=0.9, approx_type="kronecker", outputweightname=None, outputbiasname=None):
         super().__init__()
 
         self.modeloutputclosure = modeloutputclosure
         self.optimiser = optimiser
         
         self._named_parameters = list(named_parameters)
+
+        if outputweightname is not None:
+            self.outputweightname = outputweightname
+        else:
+            self.outputweightname = None
+        if outputbiasname is not None:
+            self.outputbiasname = outputbiasname
+        else:
+            self.outputbiasname = None
 
         self.set_baseFSLRs(baseFSLRs)
 
@@ -215,10 +224,22 @@ class FLeRM(nn.Module):
                     self.full_cov_var_EMAs[l] += new_full_cov_var_EMA - self.full_cov_var_EMAs[l]
 
                 elif self.approx_type == "kronecker":
-                    new_kron_var_num_EMA = torch.zeros(ndim, device=update.device, dtype=update.dtype)
-                    for d in range(ndim):
-                        new_kron_var_num_EMA[d] = (1-self.beta)*update_times_phigrad.sum(d).pow(2).sum() + self.beta*self.kron_var_num_EMAs[l][d]
-                    new_kron_var_denom_EMA = (1-self.beta)*update_times_phigrad.pow(2).sum() + self.beta*self.kron_var_denom_EMAs[l]
+                    # Optionally, for output layer weight, use IID for rows, full_cov for columns
+                    if self.named_parameters[l][0] == self.outputweightname:
+                        new_kron_var_num_EMA = torch.zeros(ndim, device=update.device, dtype=update.dtype)
+                        new_kron_var_num_EMA[0] = (1-self.beta)*update_times_phigrad.pow(2).sum() + self.beta*self.kron_var_num_EMAs[l][0]
+                        new_kron_var_num_EMA[1] = (1-self.beta)*update_times_phigrad.sum(1).pow(2).sum() + self.beta*self.kron_var_num_EMAs[l][1]
+                        new_kron_var_denom_EMA = (1-self.beta)*update_times_phigrad.pow(2).sum() + self.beta*self.kron_var_denom_EMAs[l]
+                    # Optionally, use IID for output layer bias
+                    elif self.named_parameters[l][0] == self.outputbiasname:
+                        new_kron_var_num_EMA = torch.zeros(ndim, device=update.device, dtype=update.dtype)
+                        new_kron_var_num_EMA[0] = (1-self.beta)*update_times_phigrad.pow(2).sum() + self.beta*self.kron_var_num_EMAs[l][0]
+                        new_kron_var_denom_EMA = (1-self.beta)*update_times_phigrad.pow(2).sum() + self.beta*self.kron_var_denom_EMAs[l]
+                    else:
+                        new_kron_var_num_EMA = torch.zeros(ndim, device=update.device, dtype=update.dtype)
+                        for d in range(ndim):
+                            new_kron_var_num_EMA[d] = (1-self.beta)*update_times_phigrad.sum(d).pow(2).sum() + self.beta*self.kron_var_num_EMAs[l][d]
+                        new_kron_var_denom_EMA = (1-self.beta)*update_times_phigrad.pow(2).sum() + self.beta*self.kron_var_denom_EMAs[l]
 
                     # Compute the normaliser in log space to avoid underflow
                     # On the numerator, we have D EMAs, and on the denominator, we have D-1 EMAs, so D-1 bias corrections are cancelled out
