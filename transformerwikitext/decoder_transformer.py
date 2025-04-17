@@ -4,7 +4,7 @@ import math
 import torch.nn.functional as F
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model, num_heads, widthmult=1.0, noqknorm = False, init_scale=1.0, use_forward_pass_rootL=False, depthmult=1.0):
+    def __init__(self, d_model, num_heads, widthmult=1.0, noqknorm = False, init_scale=1.0, use_forward_pass_rootL=False, depthmult=1.0, affinetransformations=False):
         super().__init__()
         assert d_model % num_heads == 0
         
@@ -20,8 +20,12 @@ class MultiHeadAttention(nn.Module):
         self.qknorm = not noqknorm
 
         if self.qknorm:
-            self.q_norm = nn.LayerNorm(self.d_head, elementwise_affine=False)
-            self.k_norm = nn.LayerNorm(self.d_head, elementwise_affine=False)
+            if not affinetransformations:
+                self.q_norm = nn.LayerNorm(self.d_head, elementwise_affine=False)
+                self.k_norm = nn.LayerNorm(self.d_head, elementwise_affine=False)
+            else:
+                self.q_norm = nn.LayerNorm(self.d_head, elementwise_affine=True)
+                self.k_norm = nn.LayerNorm(self.d_head, elementwise_affine=True)
         
         # Initialize projection matrices
         nn.init.kaiming_normal_(self.q_proj.weight, mode='fan_in', nonlinearity='linear')
@@ -95,16 +99,22 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 class DecoderBlock(nn.Module):
-    def __init__(self, d_model, num_heads, d_ff, depthmult=1.0, widthmult=1.0, noqknorm=False, normtype="postnorm", init_scale=1, use_forward_pass_rootL=False):
+    def __init__(self, d_model, num_heads, d_ff, depthmult=1.0, widthmult=1.0, noqknorm=False, normtype="postnorm", init_scale=1, use_forward_pass_rootL=False, affinetransformations=False):
         super().__init__()
         
         self.depthmult = depthmult
         self.use_forward_pass_rootL = use_forward_pass_rootL
 
-        self.self_attn = MultiHeadAttention(d_model, num_heads, widthmult, noqknorm=noqknorm, init_scale=init_scale, use_forward_pass_rootL=use_forward_pass_rootL, depthmult=depthmult)
-        self.norm1 = nn.LayerNorm(d_model, elementwise_affine=False)
+        self.self_attn = MultiHeadAttention(d_model, num_heads, widthmult, noqknorm=noqknorm, init_scale=init_scale, use_forward_pass_rootL=use_forward_pass_rootL, depthmult=depthmult, affinetransformations=affinetransformations)
+        if not affinetransformations:
+            self.norm1 = nn.LayerNorm(d_model, elementwise_affine=False)
+            self.norm2 = nn.LayerNorm(d_model, elementwise_affine=False)
+        else:
+            self.norm1 = nn.LayerNorm(d_model, elementwise_affine=True)
+            self.norm2 = nn.LayerNorm(d_model, elementwise_affine=True)
+        # self.norm1 = nn.LayerNorm(d_model, elementwise_affine=False)
         self.ff = FeedForward(d_model, d_ff, init_scale, use_forward_pass_rootL=use_forward_pass_rootL, depthmult=depthmult)
-        self.norm2 = nn.LayerNorm(d_model, elementwise_affine=False)
+        # self.norm2 = nn.LayerNorm(d_model, elementwise_affine=False)
 
         self.normtype = normtype
         
@@ -146,7 +156,7 @@ class DecoderBlock(nn.Module):
 
 class DecoderOnlyTransformer(nn.Module):
     def __init__(self, vocab_size, d_model=128, num_heads=2, num_layers=2, d_ff=512, 
-                 widthmult=1.0, depthmult=1.0, noqknorm=False, normtype="postnorm", init_scale=1, use_forward_pass_rootL=False):
+                 widthmult=1.0, depthmult=1.0, noqknorm=False, normtype="postnorm", init_scale=1, use_forward_pass_rootL=False, affinetransformations=False):
         super().__init__()
         
         # Apply width scaling
@@ -164,11 +174,14 @@ class DecoderOnlyTransformer(nn.Module):
         self.register_buffer('pos_encoding', self._init_pos_encoding())
         
         self.layers = nn.ModuleList([
-            DecoderBlock(d_model, num_heads, d_ff, depthmult, widthmult, noqknorm, normtype, init_scale, use_forward_pass_rootL)
+            DecoderBlock(d_model, num_heads, d_ff, depthmult, widthmult, noqknorm, normtype, init_scale, use_forward_pass_rootL, affinetransformations)
             for _ in range(num_layers)
         ])
         
-        self.final_norm = nn.LayerNorm(d_model, elementwise_affine=False)
+        if not affinetransformations:
+            self.final_norm = nn.LayerNorm(d_model, elementwise_affine=False)
+        else:
+            self.final_norm = nn.LayerNorm(d_model, elementwise_affine=True)
         self.normtype = normtype
 
         if not use_forward_pass_rootL:

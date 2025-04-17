@@ -225,14 +225,14 @@ class FLeRM(nn.Module):
 
                 elif self.approx_type == "kronecker":
                     # Optionally, for output layer weight, use IID for rows, full_cov for columns
-                    if self.named_parameters[l][0] == self.outputweightname:
+                    if self._named_parameters[l][0] == self.outputweightname:
                         assert update.ndim == 2, "Output layer weight must be 2D to use this simplification"
                         new_kron_var_num_EMA = torch.zeros(2, device=update.device, dtype=update.dtype)
                         new_kron_var_num_EMA[0] = 1 # This term cancels with the denominator, so we just set it to 1
                         new_kron_var_num_EMA[1] = (1-self.beta)*update_times_phigrad.sum(1).pow(2).sum() + self.beta*self.kron_var_num_EMAs[l][1]
                         new_kron_var_denom_EMA = 1 # This term cancels with the numerator, so we just set it to 1
                     # Optionally, use IID for output layer bias (equivalent to diagonal covariance assumption in this specific case because we only care about the sum over variances, and both the diagonal assumption and IID assumption just equally weight the variances)
-                    elif self.named_parameters[l][0] == self.outputbiasname:
+                    elif self._named_parameters[l][0] == self.outputbiasname:
                         assert update.ndim == 1, "Output layer bias must be 1D to use this simplification"
                         new_kron_var_num_EMA = torch.zeros(1, device=update.device, dtype=update.dtype)
                         new_kron_var_num_EMA[0] = (1-self.beta)*update_times_phigrad.pow(2).sum() + self.beta*self.kron_var_num_EMAs[l][0]

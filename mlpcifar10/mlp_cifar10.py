@@ -6,6 +6,8 @@ import torch.nn.functional as F
 import argparse
 import numpy as np
 
+from torch.optim.lr_scheduler import CosineAnnealingLR
+
 # Create a device argument
 parser = argparse.ArgumentParser()
 parser.add_argument('--device', type=str, default='cuda', choices=['cuda', 'cpu'])
@@ -15,7 +17,7 @@ parser.add_argument('--width_mult', type=int, default=1,
                     help='width multiplier for the transformer model')
 parser.add_argument('--depth_mult', type=int, default=1,
                     help='depth multiplier for the transformer model')
-parser.add_argument('--optimiser', type=str, default='adam', choices=['adam', 'sgd'])
+parser.add_argument('--optimiser', type=str, default='adam', choices=['adam', 'sgd', 'sgdmomentum'])
 parser.add_argument('--normalised', action='store_true', help='Use normalised update')
 parser.add_argument('--normaliser_update_frequency', type=int, default=100)
 parser.add_argument('--save_name', type=str, help='Path of the file to save the results to, usually with a .pt extension. E.g. \"yourfilename.pt\"')
@@ -31,6 +33,7 @@ parser.add_argument('--use_forward_pass_rootL', action='store_true', help='Use t
 parser.add_argument('--equal_mass_ablation', action='store_true', help='Use equal masses for all parameters')
 parser.add_argument('--only_flerm_first_step_ablation', action='store_true', help='Only use the flerm for the first step of the normaliser update')
 parser.add_argument('--equal_mass_but_still_splitting_depth_properly_ablation', action='store_true', help='Use equal masses for all parameters, but still split the masses properly for the depth multiplier')
+parser.add_argument('--use_scheduler', action='store_true', help='Use a scheduler for the learning rate')
 
 args = parser.parse_args()
 
@@ -49,7 +52,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
 # Weights and Biases init
-import wandb
+# import wandb
 # if args.only_measure_masses:
 #     wandb.init(
 #             project="measuremasses_mlp_cifar10",
@@ -340,6 +343,11 @@ if args.optimiser == 'adam':
     optimiser = torch.optim.Adam(param_groups)
 elif args.optimiser == 'sgd':
     optimiser = torch.optim.SGD(param_groups)
+elif args.optimiser == 'sgdmomentum':
+    optimiser = torch.optim.SGD(param_groups, momentum=0.9)
+
+dummyparameterforscheduler = torch.nn.Parameter(torch.tensor(1.0))
+dummyoptimiserforscheduler = torch.optim.Adam([dummyparameterforscheduler], lr=args.lr)
 
 if args.equal_mass_ablation and args.equal_mass_but_still_splitting_depth_properly_ablation:
     raise ValueError("Can't have both equal_mass_ablation and equal_mass_but_still_splitting_depth_properly_ablation as True")
@@ -485,7 +493,7 @@ for i in range(epochs):
         if args.normalised and iteration % args.normaliser_update_frequency == 0:
             normaliser.save_weights() # Save the weights before the update
             if not args.only_measure_masses and not args.equal_mass_ablation:
-                normaliser.set_masses(generate_masses_dict(iteration//args.normaliser_update_frequency, model))
+                normaliser.set_baseFSLRs(generate_masses_dict(iteration//args.normaliser_update_frequency, model))
 
         y_pred = model(X)
         
@@ -495,6 +503,9 @@ for i in range(epochs):
         
         # Do 40 warmup iterations at the start of training (run the normaliser for a few batches without updating the learning rates)
         # Note: normaliser.update_lrs usually in_place overwrites the tensor created in normaliser.save_weights() to become the updates to the weights, so we need a flag reuse_previous_weight_updates=True to prevent this when doing warmup, as the optimiser step isn't changing.
+        if iteration == 0 and args.use_scheduler:
+            dummyscheduler = CosineAnnealingLR(dummyoptimiserforscheduler, T_max=10000,eta_min=1e-6)
+        
         if iteration == 0 and args.normalised:
             # Run first time to compute weight_updates
             try:
@@ -607,6 +618,25 @@ for i in range(epochs):
             # wandb.log(wandbdict)
 
             print(f"Iteration: {iteration}, Train Loss: {avg_train_loss}, Train Accuracy: {avg_train_accuracy}, Test Loss: {test_loss}, Test Accuracy: {test_accuracy}, Time: {time.time() - start_time}", flush=True)
+
+        if args.use_scheduler:
+            dummyoptimiseroldlr = dummyoptimiserforscheduler.param_groups[0]['lr']
+            dummyscheduler.step()
+
+            ratiobetweenthissteplrandlaststeplrdummy = dummyoptimiserforscheduler.param_groups[0]['lr'] / dummyoptimiseroldlr
+
+            # For each group in the optimiser, decay the learning rate by the same ratio as the scheduler. This is supposed to be equivalent to scheduling the FSLRs.
+            # At the start of training, we know the base FSLRs will match the current model's. We assume with scheduling that the baseFSLRs just decay like the schedule times the initial FSLR, because we assume FSLR is proportional to LR.
+            # Therefore, since we only use FLeRM at start of training, multiplying the LRs (which are now different because they have been normalised to ensure the FSLRs match the base FSLRs) by the scheduler (equivalently decaying by the same fixed percentage) should be equivalent to scheduling the FSLRs, and so it should match the base model's schedule.
+            # In theory
+            for param_group in optimiser.param_groups:
+                param_group['lr'] *= ratiobetweenthissteplrandlaststeplrdummy
+            
+            # Every 200 batches, print the learning rates to check they're decaying properly
+            if iteration % 200 == 0:
+                print(f"Learning rates: {[param_group['lr'] for param_group in optimiser.param_groups]}")
+                if not args.only_flerm_first_step_ablation:
+                    print("Warning: Using the scheduler expects you to use the args.only_flerm_first_step_ablation flag, because we implemented it based on that assumption. (possible you are just measuring masses, in which case ignore this warning)")
 
         iteration += 1
 

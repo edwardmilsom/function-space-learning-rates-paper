@@ -7,8 +7,6 @@ import torch
 import torch.nn as nn
 import torch.onnx
 
-from torch.optim.lr_scheduler import CosineAnnealingLR
-
 import data
 
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-103 RNN/LSTM/GRU/Transformer Language Model')
@@ -58,7 +56,7 @@ parser.add_argument('--width_mult', type=int, default=1,
                     help='width multiplier for the transformer model')
 parser.add_argument('--depth_mult', type=int, default=1,
                     help='depth multiplier for the transformer model')
-parser.add_argument('--optimiser', type=str, default='adam', choices=['adam', 'sgd', 'signsgd','adamw', 'adamax', 'adagrad','sgdmomentum'])
+parser.add_argument('--optimiser', type=str, default='adam', choices=['adam', 'sgd'])
 parser.add_argument('--normalised', action='store_true', help='Use normalised update')
 parser.add_argument('--normaliser_update_frequency', type=int, default=100)
 parser.add_argument('--save_name', type=str, help='Path of the file to save the results to, usually with a .pt extension. E.g. \"yourfilename.pt\"')
@@ -72,8 +70,6 @@ parser.add_argument('--noqknorm', action='store_true', help='Use normalisation i
 parser.add_argument('--equal_mass_ablation', action='store_true', help='Use equal masses for all parameters')
 parser.add_argument('--only_flerm_first_step_ablation', action='store_true', help='Only use the flerm for the first step of the normaliser update')
 parser.add_argument('--equal_mass_but_still_splitting_depth_properly_ablation', action='store_true', help='Use equal masses for all parameters, but still split the masses properly for the depth scaling')
-parser.add_argument('--use_scheduler', action='store_true', help='Use a scheduler for the learning rate')
-parser.add_argument('--useaffinetransformations', action='store_true', help='Use affine transformations in the transformer')
 # parser.add_argument('--use_forward_pass_rootL', action='store_true', help='Use the forward pass root L in the transformer')
 args = parser.parse_args()
 
@@ -200,7 +196,7 @@ if args.model == 'Transformer':
     if args.transformer_depth_norm:
         # model = model.DepthScalingTransformerModel(ntokens, args.emsize * args.width_mult, args.nhead, args.nhid * args.width_mult, 2 * args.depth_mult, args.dropout, args.depth_mult).to(device)
         # def __init__(self, vocab_size, d_model=512, num_heads=8, num_layers=6, d_ff=2048, widthmult=1.0, depthmult=1.0)
-        model = DecoderOnlyTransformer(vocab_size=ntokens, d_model=args.emsize, num_heads=args.nhead, num_layers=2, d_ff=4*args.emsize, widthmult=args.width_mult, depthmult=args.depth_mult, normtype=args.normtype, init_scale=args.init_scale, noqknorm=args.noqknorm, use_forward_pass_rootL=True, affinetransformations=args.useaffinetransformations).to(device)
+        model = DecoderOnlyTransformer(vocab_size=ntokens, d_model=args.emsize, num_heads=args.nhead, num_layers=2, d_ff=4*args.emsize, widthmult=args.width_mult, depthmult=args.depth_mult, normtype=args.normtype, init_scale=args.init_scale, noqknorm=args.noqknorm, use_forward_pass_rootL=True).to(device)
     else:
         raise ValueError("DIDN'T EXPECT TO NOT USE DEPTH SCALING")
         model = model.TransformerModel(ntokens, args.emsize * args.width_mult, args.nhead, args.nhid * args.width_mult, 2 * args.depth_mult, args.dropout).to(device)
@@ -324,8 +320,11 @@ def evaluate(data_source):
     return total_loss / total_loss_divisor
 
 
+normalisers_variance_computation_dict = {name:[] for name, param in model.named_parameters()}
+
 def train():
     global flerm_train_loader_iter # Python treats this as a local variable because we reassign it in the except block, so just declare it as global
+    global normalisers_variance_computation_dict
     # Reset cuda peak memory tracker
     torch.cuda.reset_peak_memory_stats()
     # Turn on training mode which enables dropout.
@@ -354,7 +353,7 @@ def train():
                 normaliser.save_weights() # Save the weights before the update
                 # old_masses = normaliser.masses
                 if not args.measure_masses_only and not args.equal_mass_ablation:
-                    normaliser.set_baseFSLRs(generate_masses_dict(batch//args.normaliser_update_frequency, model)) # Set the masses for the current update.
+                    normaliser.set_masses(generate_masses_dict(batch//args.normaliser_update_frequency, model)) # Set the masses for the current update.
                 # print(f"batch//args.normaliser_update_frequency: {batch//args.normaliser_update_frequency}")
                 # diff_masses = [old_masses[i] - normaliser.masses[i] for i in range(len(old_masses))]
                 # print(f"diff_masses: {diff_masses}")
@@ -372,6 +371,7 @@ def train():
                 # Do 40 warmup iterations at the start of training (run the normaliser for a few batches without updating the learning rates)
                 # Note: normaliser.update_lrs usually in_place overwrites the tensor created in normaliser.save_weights() to become the updates to the weights, so we need a flag reuse_previous_weight_updates=True to prevent this when doing warmup, as the optimiser step isn't changing.
                 if batch == 0:
+                    # normalisers_variance_computation_dict = {name:[] for name, param in model.named_parameters()}
                     # Run first time to compute weight_updates
                     try:
                         flerm_data, _ = next(flerm_train_loader_iter)
@@ -379,13 +379,23 @@ def train():
                         flerm_train_loader_iter = iter(flerm_train_loader)
                         flerm_data, _ = next(flerm_train_loader_iter)
                     normaliser.update_lrs(flerm_data, modify_lrs=False) 
-                    for _ in range(39):
+                    for _ in range(10000):
                         try:
                             flerm_data, _ = next(flerm_train_loader_iter)
                         except StopIteration:
                             flerm_train_loader_iter = iter(flerm_train_loader)
                             flerm_data, _ = next(flerm_train_loader_iter)
                         normalisers = normaliser.update_lrs(flerm_data, modify_lrs=False, return_delta_ell_fs=True, reuse_previous_weight_updates=True) # Don't try and recompute the weight updates, or it'll break, because you'll lose the information we stored in normaliser.save_weights()
+                        for namedparam, nmlsr in zip(model.named_parameters(), normalisers):
+                            normalisers_variance_computation_dict[namedparam[0]].append(nmlsr)
+                    # Compute the variance
+                    # for name in normalisers_variance_computation_dict:
+                    #     # normalisers_variance_computation_dict[name] contains a list of floats. Compute the mean and standard deviation of this list.
+                    #     normalisers_variance_computation_dict[name] = (torch.mean(torch.tensor(normalisers_variance_computation_dict[name])), torch.std(torch.tensor(normalisers_variance_computation_dict[name])))
+                    # print(f"(Mean,Std) of normalisers using {args.normaliser_approx_type} approximation:")
+                    # for name, meanstd in normalisers_variance_computation_dict.items():
+                    #     print(f"{name}: {meanstd}")
+                    # breakpoint()
                     # Do the actual normaliser update, but have to use reuse_previous_weight_updates=True because we already ran the normaliser for this optimiser step
                     try:
                         flerm_data, _ = next(flerm_train_loader_iter)
@@ -402,10 +412,7 @@ def train():
                             normalisers_iters_dict[namedparam[0]].append(nmlsr)
                     else:
                         normaliser.update_lrs(flerm_data, reuse_previous_weight_updates=True) # Replace the last update with the normalised update, and update the learning rates for subsequent updates.
-
-                    if args.use_scheduler:
-                        dummyscheduler = CosineAnnealingLR(dummyoptimiserforscheduler, T_max=2475,eta_min=1e-6)
-
+                
                 # For all other iterations, do the normal things
                 elif not args.only_flerm_first_step_ablation:
                     # Do the actual normaliser update
@@ -424,8 +431,7 @@ def train():
                             normalisers_iters_dict[namedparam[0]].append(nmlsr)
                     else:
                         normaliser.update_lrs(flerm_data) # Replace the last update with the normalised update, and update the learning rates for subsequent updates.
-            elif batch == 0 and args.use_scheduler:
-                dummyscheduler = CosineAnnealingLR(dummyoptimiserforscheduler, T_max=2475,eta_min=1e-6)
+            
         else:
             raise ValueError("WE SHOULD NOT BE TRYING TO USE AN RNN IN THE TRAINING LOOP")
             hidden = repackage_hidden(hidden)
@@ -483,29 +489,13 @@ def train():
         if args.dry_run:
             break
 
-        if args.use_scheduler:
-            dummyoptimiseroldlr = dummyoptimiserforscheduler.param_groups[0]['lr']
-            dummyscheduler.step()
+        # Only do one batch because we're just measuring the variance of the normaliser
+        break
 
-            ratiobetweenthissteplrandlaststeplrdummy = dummyoptimiserforscheduler.param_groups[0]['lr'] / dummyoptimiseroldlr
-
-            # For each group in the optimiser, decay the learning rate by the same ratio as the scheduler. This is supposed to be equivalent to scheduling the FSLRs.
-            # At the start of training, we know the base FSLRs will match the current model's. We assume with scheduling that the baseFSLRs just decay like the schedule times the initial FSLR, because we assume FSLR is proportional to LR.
-            # Therefore, since we only use FLeRM at start of training, multiplying the LRs (which are now different because they have been normalised to ensure the FSLRs match the base FSLRs) by the scheduler (equivalently decaying by the same fixed percentage) should be equivalent to scheduling the FSLRs, and so it should match the base model's schedule.
-            # In theory
-            for param_group in optimiser.param_groups:
-                param_group['lr'] *= ratiobetweenthissteplrandlaststeplrdummy
-            
-            # Every 200 batches, print the learning rates to check they're decaying properly
-            if batch % 200 == 0:
-                print(f"Learning rates: {[param_group['lr'] for param_group in optimiser.param_groups]}")
-                if not args.only_flerm_first_step_ablation:
-                    print("Warning: Using the scheduler expects you to use the args.only_flerm_first_step_ablation flag, because we implemented it based on that assumption. (possible you are just measuring masses, in which case ignore this warning)")
-
-    train_loss = outer_total_loss / outer_total_loss_divisor
+    # train_loss = outer_total_loss / outer_total_loss_divisor
     # print peak cuda memory
-    print(f"Peak memory usage: {torch.cuda.max_memory_allocated() / 1024**2} MB")
-    return train_loss
+    # print(f"Peak memory usage: {torch.cuda.max_memory_allocated() / 1024**2} MB")
+    return 1
     
 
 #flerm is in the parent directory, so we need to import it from ..
@@ -525,20 +515,6 @@ if args.optimiser == 'adam':
 elif args.optimiser == 'sgd':
     # optimiser = torch.optim.SGD(model.parameters(), lr=1)
     optimiser = torch.optim.SGD(param_groups)
-elif args.optimiser == 'signsgd':
-    from pytorch_optimizer import SignSGD
-    optimiser = SignSGD(param_groups)
-elif args.optimiser == 'adamw':
-    optimiser = torch.optim.AdamW(param_groups, weight_decay=0.1)
-elif args.optimiser == 'adamax':
-    optimiser = torch.optim.Adamax(param_groups)
-elif args.optimiser == 'adagrad':
-    optimiser = torch.optim.Adagrad(param_groups)
-elif args.optimiser == 'sgdmomentum':
-    optimiser = torch.optim.SGD(param_groups, momentum=0.9)
-
-dummyparameterforscheduler = torch.nn.Parameter(torch.tensor(1.0))
-dummyoptimiserforscheduler = torch.optim.Adam([dummyparameterforscheduler], lr=args.lr)
 
 # # Initialise the network by running a forward pass
 # data, targets = get_batch(train_data, 0)
@@ -638,9 +614,8 @@ def model_output_closure(X):
     return model(X)
 
 # Initialise the normaliser
-normaliser = FLeRM(model_output_closure, optimiser, args.lr, model.named_parameters(), beta=args.normaliser_beta, approx_type=args.normaliser_approx_type, baseFSLRs = masses)
-
-time_before_training = time.time()
+# Note I have set beta to 0 because we want to just measure the variance of delta Phi.
+normaliser = FLeRM(model_output_closure, optimiser, args.lr, model.named_parameters(), beta=0, approx_type=args.normaliser_approx_type, baseFSLRs = masses)
 
 train_losses = []
 val_losses = []
@@ -655,13 +630,13 @@ try:
         epoch_start_time = time.time()
         train_loss = train()
         # train_perplexity = math.exp(train_loss)
-        val_loss = evaluate(val_data)
-        val_perplexity = math.exp(val_loss)
-        print('-' * 89)
-        print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
-                'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
-                                           val_loss, math.exp(val_loss)), flush=True)
-        print('-' * 89)
+        # val_loss = evaluate(val_data)
+        # val_perplexity = math.exp(val_loss)
+        # print('-' * 89)
+        # print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
+        #         'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
+        #                                    val_loss, math.exp(val_loss)), flush=True)
+        # print('-' * 89)
         # Save the model if the validation loss is the best we've seen so far.
         # if not best_val_loss or val_loss < best_val_loss:
         #     with open(args.save, 'wb') as f:
@@ -691,25 +666,18 @@ except KeyboardInterrupt:
 #         model.rnn.flatten_parameters()
 
 # Run on test data.
-test_loss = evaluate(test_data)
-print('=' * 89)
-print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
-    test_loss, math.exp(test_loss)))
-print('=' * 89)
-
-time_after_training = time.time()
-
-print(f"Time taken for training: {time_after_training - time_before_training} seconds")
-# Compute total number of parameters in model:
-total_params = sum(p.numel() for p in model.parameters())
-print(f"Total number of parameters in model: {total_params}")
+# test_loss = evaluate(test_data)
+# print('=' * 89)
+# print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
+#     test_loss, math.exp(test_loss)))
+# print('=' * 89)
 
 # if len(args.onnx_export) > 0:
 #     # Export the model in ONNX format.
 #     export_onnx(args.onnx_export, batch_size=1, seq_len=args.bptt)
 
 # results = {'train_losses': train_losses, 'test_losses': val_losses, 'train_perplexities': train_perplexities, 'test_perplexities': val_perplexities}
-results = {'train_losses': train_losses, 'test_losses': val_losses}
+# results = {'train_losses': train_losses, 'test_losses': val_losses}
 # torch.save(results, f"results_widthmult_{args.width_mult}_lr_{args.lr}.pt")
 # if args.optimiser == 'adam' and not args.normalised:
 #     torch.save(results, f"{args.save_dir}/adam_results_widthmult_{args.width_mult}_lr_{args.lr}.pt")
@@ -720,18 +688,20 @@ results = {'train_losses': train_losses, 'test_losses': val_losses}
 # elif args.optimiser == "adam" and args.normalised:
 #     torch.save(results, f"{args.save_dir}/normalised_adam_results_widthmult_{args.width_mult}_lr_{args.lr}.pt")
 
-if args.save_name is not None:
-    torch.save(results, args.save_name)
-else:
-    if args.normalised and not args.measure_masses_only:
-        normstring = "normalised"
-    elif args.normalised and args.measure_masses_only:
-        normstring = "measuremasses"
-    else:
-        normstring = ""
-    nameprefix = args.ptprefix + normstring + args.optimiser
-    torch.save(results, f"{nameprefix}_results_widthmult_{args.width_mult}_depthmult_{args.depth_mult}_initscale_{args.init_scale}_lr_{args.lr}_seed_{args.seed}.pt")
+# if args.save_name is not None:
+#     torch.save(results, args.save_name)
+# else:
+#     if args.normalised and not args.measure_masses_only:
+#         normstring = "normalised"
+#     elif args.normalised and args.measure_masses_only:
+#         normstring = "measuremasses"
+#     else:
+#         normstring = ""
+#     nameprefix = args.ptprefix + normstring + args.optimiser
+#     torch.save(results, f"{nameprefix}_results_widthmult_{args.width_mult}_depthmult_{args.depth_mult}_initscale_{args.init_scale}_lr_{args.lr}_seed_{args.seed}.pt")
 
-if args.measure_masses_only:
-    # Save the normalisers_iters_dict
-    torch.save(normalisers_iters_dict, f"{args.ptnormsprefix}{args.normtype}transformerbasemodelempiricalmasses_lr_{args.lr}_seed_{args.seed}.ptnorms")
+# if args.measure_masses_only:
+#     # Save the normalisers_iters_dict
+#     torch.save(normalisers_iters_dict, f"{args.ptnormsprefix}{args.normtype}transformerbasemodelempiricalmasses_lr_{args.lr}_seed_{args.seed}.ptnorms")
+
+torch.save(normalisers_variance_computation_dict, f"{args.ptnormsprefix}_{args.normtype}_transformersamplesforplottingvariance_lr_{args.lr}_seed_{args.seed}.ptnormsforvariances")
