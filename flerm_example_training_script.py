@@ -225,15 +225,15 @@ for i in range(5):
                 flerm_X = get_next_flerm_batch().flatten(1,3).to(args.device)
                 flerm.update_lrs(flerm_X, modify_lrs=False, reuse_previous_weight_updates=True)
             # Regular FLeRM step (same as below, see below for explanation) except we need to use the reuse_previous_weight_updates flag to avoid recomputing the weight updates
-                flerm_X = get_next_flerm_batch().flatten(1,3).to(args.device)
-                if args.record_basefslrs:
-                    baseFSLRsthisstep = flerm.update_lrs(flerm_X, modify_lrs=False, return_delta_ell_fs=True, reuse_previous_weight_updates=True)
-                    parindex=0
-                    for paramname, _ in model.named_parameters():
-                        recordedFSLRs_iters_dict[paramname].append(baseFSLRsthisstep[parindex])
-                        parindex+=1
-                elif args.normalise_scaled_fslrs_using_flerm:
-                    flerm.update_lrs(flerm_X, modify_lrs=True, return_delta_ell_fs=False, reuse_previous_weight_updates=True)
+            flerm_X = get_next_flerm_batch().flatten(1,3).to(args.device)
+            if args.record_basefslrs:
+                baseFSLRsthisstep = flerm.update_lrs(flerm_X, modify_lrs=False, return_delta_ell_fs=True, reuse_previous_weight_updates=True)
+                parindex=0
+                for paramname, _ in model.named_parameters():
+                    recordedFSLRs_iters_dict[paramname].append(baseFSLRsthisstep[parindex])
+                    parindex+=1
+            elif args.normalise_scaled_fslrs_using_flerm:
+                flerm.update_lrs(flerm_X, modify_lrs=True, return_delta_ell_fs=False, reuse_previous_weight_updates=True)
 
         # When not on the first iteration / warming up FLeRM, we can run the regular FLeRM step
         # Regular FLeRM step (where we actually update the learning rates, or record the base FSLRs)
